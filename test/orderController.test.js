@@ -107,6 +107,41 @@ test('removing processing bot returns order to queue position', async () => {
   assert.equal(controller.bots.length, 1);
 });
 
+test('returned order keeps VIP priority and FIFO among same type', () => {
+  const { controller } = createTestController();
+
+  controller.createOrder('normal');
+  controller.addBot();
+
+  assert.equal(controller.bots[0].currentOrder.id, 1001);
+
+  controller.createOrder('vip');
+  controller.removeBot();
+
+  assert.deepEqual(
+    controller.pendingOrders.map((order) => `${order.type}#${order.id}`),
+    ['vip#1002', 'normal#1001']
+  );
+});
+
+test('returned VIP stays behind earlier VIP orders', () => {
+  const { controller } = createTestController();
+
+  controller.createOrder('vip');
+  controller.addBot();
+
+  assert.equal(controller.bots[0].currentOrder.id, 1001);
+
+  controller.createOrder('vip');
+  controller.createOrder('normal');
+  controller.removeBot();
+
+  assert.deepEqual(
+    controller.pendingOrders.map((order) => order.id),
+    [1001, 1002, 1003]
+  );
+});
+
 test('logger output includes HH:MM:SS timestamps', () => {
   const { logger } = createTestController();
 

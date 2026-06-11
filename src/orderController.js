@@ -8,6 +8,20 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function findInsertIndex(pendingOrders, order) {
+  const index = pendingOrders.findIndex((existing) => {
+    if (order.type === 'vip' && existing.type === 'normal') {
+      return true;
+    }
+    if (order.type === 'normal' && existing.type === 'vip') {
+      return false;
+    }
+    return order.id < existing.id;
+  });
+
+  return index === -1 ? pendingOrders.length : index;
+}
+
 class OrderController {
   constructor(logger, options = {}) {
     this.logger = logger;
@@ -25,16 +39,7 @@ class OrderController {
       type,
     };
 
-    if (type === 'vip') {
-      const firstNormalIndex = this.pendingOrders.findIndex((item) => item.type === 'normal');
-      if (firstNormalIndex === -1) {
-        this.pendingOrders.push(order);
-      } else {
-        this.pendingOrders.splice(firstNormalIndex, 0, order);
-      }
-    } else {
-      this.pendingOrders.push(order);
-    }
+    this.insertOrderInQueue(order);
 
     this.logger.log(
       `Created ${capitalizeType(type)} Order #${order.id} - Status: PENDING`
@@ -42,6 +47,11 @@ class OrderController {
 
     this.assignIdleBots();
     return order;
+  }
+
+  insertOrderInQueue(order) {
+    const insertAt = findInsertIndex(this.pendingOrders, order);
+    this.pendingOrders.splice(insertAt, 0, order);
   }
 
   addBot() {
@@ -82,8 +92,7 @@ class OrderController {
   }
 
   returnOrderToQueue(order) {
-    const insertAt = Math.min(order.queueIndex, this.pendingOrders.length);
-    this.pendingOrders.splice(insertAt, 0, order);
+    this.insertOrderInQueue(order);
   }
 
   assignIdleBots() {
@@ -99,9 +108,7 @@ class OrderController {
       return;
     }
 
-    const queueIndex = 0;
-    const order = this.pendingOrders.splice(queueIndex, 1)[0];
-    order.queueIndex = queueIndex;
+    const order = this.pendingOrders.splice(0, 1)[0];
     bot.status = 'PROCESSING';
     bot.currentOrder = order;
 
@@ -152,4 +159,10 @@ class OrderController {
   }
 }
 
-module.exports = { OrderController, PROCESSING_TIME_MS, sleep, capitalizeType };
+module.exports = {
+  OrderController,
+  PROCESSING_TIME_MS,
+  sleep,
+  capitalizeType,
+  findInsertIndex,
+};
